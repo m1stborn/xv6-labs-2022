@@ -22,6 +22,12 @@ main(int argc, char *argv[])
   for(i = 2; i < argc && i < MAXARG; i++){
     nargv[i-2] = argv[i];
   }
+
+  printf("Execute trace.c:\n");
+  printf("Done parsing argument: argc=%d nargv[0]=%s.\n", argc, nargv[0]);
+
   exec(nargv[0], nargv);
   exit(0);
 }
+
+// trace 32 grep hello README
