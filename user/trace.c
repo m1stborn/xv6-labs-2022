@@ -24,6 +24,7 @@ main(int argc, char *argv[])
   }
 
   printf("Execute trace.c:\n");
+  printf("Trace mask: %d\n", atoi(argv[1]));
   printf("Done parsing argument: argc=%d nargv[0]=%s.\n", argc, nargv[0]);
 
   exec(nargv[0], nargv);

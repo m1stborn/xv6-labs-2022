@@ -5,6 +5,7 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "sysinfo.h"
 
 uint64
 sys_exit(void)
@@ -100,5 +101,27 @@ sys_trace(void)
   argint(0, &mask);
   struct proc *p = myproc();
   p->trace_mask = mask;
+  return 0;
+}
+
+uint64
+sys_sysinfo(void)
+{
+  struct proc *p = myproc();
+  struct sysinfo info; // in kernel space.
+  info.freemem = free_mems();
+  info.nproc = num_procs();
+
+  uint64 addr;
+  argaddr(0, &addr); // get user argument address.
+
+  if (copyout(p->pagetable, addr, (char *)&info, sizeof(struct sysinfo)) < 0)
+    // we create `info` in kernel space , we use `copyout` to copy to `addr` in userspace.
+
+    // copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
+    //  dstva: destination virtual address;
+    //  src: pointer;
+    return -1;
+
   return 0;
 }

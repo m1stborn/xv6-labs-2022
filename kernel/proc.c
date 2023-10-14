@@ -169,6 +169,7 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+  // p->trace_mask = 0; //TODO: maybe require?
 }
 
 // Create a user page table for a given process, with no user memory,
@@ -683,4 +684,20 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+int
+num_procs(void)
+{
+  int num = 0;
+  struct proc * p;
+
+  for(p = proc; p<&proc[NPROC]; p++) {
+    acquire(&p->lock);
+      if(p->state != UNUSED)
+        num+=1;
+    release(&p->lock);
+  }
+
+  return num;
 }
