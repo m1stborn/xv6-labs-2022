@@ -437,3 +437,36 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+static int level = 0;
+
+void vmprint(pagetable_t pagetable)
+{
+  if (level == 0) {
+    // printf("page table %p\n", (uint64)pagetable);
+    // work same, why? -> uint64 turns out to have same size as a pointer;
+
+    printf("page table %p\n", pagetable); // this make sense
+    // printf("sizeof: %d\n", sizeof((uint64)pagetable)); 8
+    // printf("sizeof: %d\n", sizeof(pagetable)); 8
+  }
+
+  for (int i = 0; i < 512; i++) {
+    pte_t pte = pagetable[i];
+    if (pte & PTE_V) {
+      uint64 pa = PTE2PA(pte);
+
+      for (int j = 0; j <= level; j++) {
+        printf("..");
+      }
+      printf("%d: pte %p pa %p\n", i, pte, pa);
+
+      // this means point to lower-level page table
+      if((pte & (PTE_W|PTE_R|PTE_X)) == 0) {
+        level++;
+        vmprint((pagetable_t)pa);
+        level--;
+      }
+    }
+  }
+}
