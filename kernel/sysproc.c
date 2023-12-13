@@ -51,6 +51,8 @@ sys_sbrk(void)
 uint64
 sys_sleep(void)
 {
+  // printf("fn sys_sleep\n");
+
   int n;
   uint ticks0;
 
@@ -92,4 +94,29 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+uint64
+sys_sigreturn(void)
+{
+  struct proc* proc = myproc();
+  // re-store trapframe so that it can return to the interrupt code before.
+  *proc->trapframe = proc->saved_trapframe;
+  proc->have_return = 1; // true
+  return proc->trapframe->a0;
+}
+
+uint64
+sys_sigalarm(void)
+{
+  int ticks;
+  uint64 handler_va;
+
+  argint(0, &ticks);
+  argaddr(1, &handler_va);
+  struct proc* proc = myproc();
+  proc->alarm_interval = ticks;
+  proc->handler_va = handler_va;
+  proc->have_return = 1; // true
+  return 0;
 }

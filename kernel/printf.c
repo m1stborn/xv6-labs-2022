@@ -139,7 +139,13 @@ backtrace(void)
 {
   uint64 fp_address = r_fp();
   while(fp_address != PGROUNDDOWN(fp_address)) {
-    printf("%p\n", *(uint64*)(fp_address-8));
+    printf("ra: %p\n", *(uint64*)(fp_address-8));
+    printf("cur: %p\n", (uint64*)(fp_address));
+    // printf("|%p|\n", *(fp_address-8)); // wrong
+    // printf("|%p|\n", (uint64*)(fp_address-8)); // display as signed integer
+
+    // (uint64*)(fp_address-8): address
+    // *(uint64*)(fp_address-8): value store in this address, which turn out to be another address.
     fp_address = *(uint64*)(fp_address - 16);
   }
 }

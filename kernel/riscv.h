@@ -311,6 +311,8 @@ w_tp(uint64 x)
   asm volatile("mv tp, %0" : : "r" (x));
 }
 
+// retrieve return address
+// r_fp() uses in-line assembly to read s0.
 static inline uint64
 r_ra()
 {
@@ -319,6 +321,7 @@ r_ra()
   return x;
 }
 
+// retrieve frame pointer
 static inline uint64
 r_fp()
 {

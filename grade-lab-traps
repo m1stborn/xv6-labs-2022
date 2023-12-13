@@ -23,7 +23,7 @@ def addr2line():
         except OSError:
             continue
     raise AssertionError('Cannot find the addr2line program')
-
+    
 @test(10, "backtrace test")
 def test_backtracetest():
     r.run_qemu(shell_script([
