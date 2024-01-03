@@ -138,6 +138,8 @@ void
 backtrace(void)
 {
   uint64 fp_address = r_fp();
+  printf("fp: %p\n", *(uint64*)(fp_address));
+  printf("fp: %p\n", (uint64*)(fp_address));
   while(fp_address != PGROUNDDOWN(fp_address)) {
     printf("ra: %p\n", *(uint64*)(fp_address-8));
     printf("cur: %p\n", (uint64*)(fp_address));
