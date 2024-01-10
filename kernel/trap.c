@@ -29,6 +29,39 @@ trapinithart(void)
   w_stvec((uint64)kernelvec);
 }
 
+
+int
+cowhandler(pagetable_t pagetable, uint64 va)
+{
+  char *mem;
+  if (va >= MAXVA)
+    return -1;
+  pte_t *pte = walk(pagetable, va, 0);
+  if (pte == 0)
+    return -1;
+  // check the PTE
+  if ((*pte & PTE_C) == 0 || (*pte & PTE_U) == 0 || (*pte & PTE_V) == 0) {
+    return -1;
+  }
+  if ((mem = kalloc()) == 0) {
+    return -1;
+  }
+  // old physical address
+  uint64 pa = PTE2PA(*pte);
+  // copy old data to new mem
+  memmove((char*)mem, (char*)pa, PGSIZE);
+  // PAY ATTENTION
+  // decrease the reference count of old memory page, because a new page has been allocated
+  kfree((void*)pa);
+  uint flags = PTE_FLAGS(*pte);
+  // set PTE_W to 1, change the address pointed to by PTE to new memory page(mem)
+  *pte = (PA2PTE(mem) | flags | PTE_W);
+  // set PTE_C to 0
+  *pte &= ~PTE_C;
+  return 0;
+}
+
+
 //
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
@@ -65,6 +98,12 @@ usertrap(void)
     intr_on();
 
     syscall();
+  } else if(r_scause() == 15) { // ** catch Store/AMO page fault
+    uint64 va = r_stval();
+    if (va >= p->sz)
+      p->killed = 1;
+    if (cowhandler(p->pagetable, va) != 0)
+      p->killed = 1;
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {

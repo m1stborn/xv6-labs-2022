@@ -5,6 +5,13 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "spinlock.h"
+#include "proc.h"
+
+
+// Just declare the variables from kernel/kalloc.c
+extern int ref_cnt[PHYSTOP/PGSIZE];
+extern struct spinlock ref_cnt_lock;
 
 /*
  * the kernel's page table.
@@ -308,20 +315,37 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
+
+  // ** unused variable
+  // char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
+
+    // ** update pte if writeable
+    if (*pte & PTE_W)
+      *pte = (*pte & ~PTE_W) | PTE_C;
+
     pa = PTE2PA(*pte);
+
+    // ** increment the reference count
+    acquire(&ref_cnt_lock);
+    ref_cnt[pa/PGSIZE] += 1;
+    release(&ref_cnt_lock);
+
+    // ** extract new flags from updated pte.
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
+
+    // ** Disable alloc new memory for child
+    // if((mem = kalloc()) == 0)
+    //   goto err;
+    // memmove(mem, (char*)pa, PGSIZE);
+
+    if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
+      // kfree(mem);
       goto err;
     }
   }
@@ -345,6 +369,13 @@ uvmclear(pagetable_t pagetable, uint64 va)
   *pte &= ~PTE_U;
 }
 
+//TODO
+int checkcowpage(uint64 va, pte_t *pte, struct proc* p) {
+  return (va < p->sz) // va should smaller the size of process memory (bytes)
+         && (*pte & PTE_V)
+         && (*pte & PTE_C); // pte is COW page
+}
+
 // Copy from kernel to user.
 // Copy len bytes from src to virtual address dstva in a given page table.
 // Return 0 on success, -1 on error.
@@ -358,6 +389,35 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
       return -1;
+
+    struct proc *p = myproc();
+    pte_t *pte = walk(pagetable, va0, 0);
+    if (*pte == 0)
+      p->killed = 1;
+    // check
+    if (checkcowpage(va0, pte, p))
+    {
+      char *mem;
+      if ((mem = kalloc()) == 0) {
+        // kill the process
+        p->killed = 1;
+      }else {
+        memmove(mem, (char*)pa0, PGSIZE);
+        // PAY ATTENTION!!!
+        // This statement must be above the next statement
+        uint flags = PTE_FLAGS(*pte);
+        // decrease the reference count of old memory that va0 point
+        // and set pte to 0
+        uvmunmap(pagetable, va0, 1, 1);
+        // change the physical memory address and set PTE_W to 1
+        *pte = (PA2PTE(mem) | flags | PTE_W);
+        // set PTE_C to 0
+        *pte &= ~PTE_C;
+        // update pa0 to new physical memory address
+        pa0 = (uint64)mem;
+      }
+    }
+
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
