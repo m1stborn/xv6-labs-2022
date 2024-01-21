@@ -1,0 +1,2 @@
+When 2 thread access same insert key to same bucket, the 2 thread try to add new entry at the same time.
+(ph.c line 36)
