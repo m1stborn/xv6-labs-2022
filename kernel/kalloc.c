@@ -21,12 +21,18 @@ struct run {
 struct {
   struct spinlock lock;
   struct run *freelist;
-} kmem;
+  char lock_name[6];
+} kmem[NCPU];
 
 void
 kinit()
 {
-  initlock(&kmem.lock, "kmem");
+  // initlock(&kmem.lock, "kmem");
+  for(int i=1; i<NCPU; i++){
+    snprintf(kmem[i].lock_name, sizeof(kmem[i].lock_name), "kmem_%d", i);
+    initlock(&kmem[i].lock, kmem[i].lock_name);
+  }
+  // Initially, all free page will be allocated to CPU#0. When kalloc fail, it will try to steal other CPU's free page.
   freerange(end, (void*)PHYSTOP);
 }
 
@@ -56,10 +62,14 @@ kfree(void *pa)
 
   r = (struct run*)pa;
 
-  acquire(&kmem.lock);
-  r->next = kmem.freelist;
-  kmem.freelist = r;
-  release(&kmem.lock);
+  push_off(); // disable interrupt
+  int cpu_id = cpuid();
+  pop_off();  // enable interrupt
+
+  acquire(&kmem[cpu_id].lock);
+  r->next = kmem[cpu_id].freelist;
+  kmem[cpu_id].freelist = r;
+  release(&kmem[cpu_id].lock);
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -70,11 +80,47 @@ kalloc(void)
 {
   struct run *r;
 
-  acquire(&kmem.lock);
-  r = kmem.freelist;
-  if(r)
-    kmem.freelist = r->next;
-  release(&kmem.lock);
+  push_off(); // disable interrupt
+  int cpu_id = cpuid();
+  pop_off();  // enable interrupt
+
+  acquire(&kmem[cpu_id].lock);
+  r = kmem[cpu_id].freelist;
+
+  if(r) kmem[cpu_id].freelist = r->next;
+  else {
+    for (int i = 0; i < NCPU; i++) {
+      if(i == cpu_id) continue; // pass if i == current cpu_id
+      acquire(&kmem[i].lock);
+      // ==========================================================
+      // Method 1. Steal `1` page from other CPU's kmem.freelist
+      // r = kmem[i].freelist;
+      // if(r) kmem[i].freelist = r->next;
+      // ==========================================================
+      // ==========================================================
+      // Method 2. Steal `half` page from other CPU's kmem.freelist
+      if(kmem[i].freelist) {
+        struct run *f = kmem[i].freelist; // faster pointer
+        struct run *s = kmem[i].freelist; // slow pointer
+        while (f && f->next) {
+          f = f->next->next;
+          s = s->next;
+        }
+        kmem[cpu_id].freelist = kmem[i].freelist;
+        if (s==kmem[i].freelist)  kmem[i].freelist = 0; // s == the only page
+        else {
+          kmem[i].freelist = s->next;
+          s->next = 0;
+        }
+        r = kmem[cpu_id].freelist;
+        kmem[cpu_id].freelist = r->next;
+      }
+      release(&kmem[i].lock);
+      if(r) break;
+    }
+
+  }
+  release(&kmem[cpu_id].lock);
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
