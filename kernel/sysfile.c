@@ -301,6 +301,34 @@ create(char *path, short type, short major, short minor)
   return 0;
 }
 
+
+uint64
+sys_symlink(void) {
+  char target[MAXPATH], path[MAXPATH];
+  struct inode *ip;
+  int n;
+
+  if((n = argstr(0, target, MAXPATH))< 0 || argstr(1, path, MAXPATH) < 0)
+    return -1;
+
+  begin_op();
+
+  // Create a new symlink, return with a locked inode
+  if((ip = create(path, T_SYMLINK, 0, 0)) == 0 ) {
+    end_op();
+    return -1;
+  }
+
+  // write target to symlink file
+  if (writei(ip, 0, (uint64)target, 0, n) < n)
+    panic("symlink error: write target path");
+
+  iunlockput(ip);
+
+  end_op();
+  return 0;
+}
+
 uint64
 sys_open(void)
 {
@@ -328,6 +356,29 @@ sys_open(void)
       return -1;
     }
     ilock(ip);
+
+    int depth = 0; // prevent cycle symlink
+    while (ip->type == T_SYMLINK && !(omode & O_NOFOLLOW)) {
+      if (depth == 10) { // escape cycle symlink
+        iunlockput(ip);
+        end_op();
+        return -1;
+      }
+
+      // recursively follow symlink
+      readi(ip, 0, (uint64)path, 0, MAXPATH);
+      iunlockput(ip);
+
+      if ((ip = namei(path)) == 0) {
+        end_op();
+        return -1;
+      }
+
+      ilock(ip);
+
+      ++depth;
+    }
+
     if(ip->type == T_DIR && omode != O_RDONLY){
       iunlockput(ip);
       end_op();
