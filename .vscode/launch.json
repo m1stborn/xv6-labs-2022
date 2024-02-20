@@ -1,0 +1,43 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        
+        // {
+        //     "type": "by-gdb",
+        //     "request": "launch",
+        //     "name": "Launch(gdb)",
+        //     "program": "${fileBasenameNoExtension}",
+        //     "cwd": "${workspaceRoot}"
+        // },
+        // {
+        //     "type": "by-gdb",
+        //     "request": "launch",
+        //     "name": "BY-Attach to gdbserver",
+        //     "program": "kernel/kernel",
+        //     "cwd": "${workspaceRoot}",
+        //     "remote": { 
+        //         "enabled": true,
+        //         "address": ":8080",
+        //         "mode": "remote",
+        //         "execfile": "qemu-system-riscv64"
+        //     }
+        // },
+        {
+            "type": "gdb",
+            "request": "attach",
+            "name": "Attach to gdbserver",
+            "gdbpath": "/usr/bin/gdb-multiarch",
+            // "debugger_args": ["set architecture auto"],
+            "executable": "kernel/kernel",
+            "target": "127.0.0.1:8080",
+            "remote": true,
+            "printCalls": true,
+            "cwd": "${workspaceRoot}",
+            "valuesFormatting": "parseText"
+        }
+
+    ]
+}
